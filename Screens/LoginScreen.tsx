@@ -1,7 +1,12 @@
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { signInWithEmailAndPassword } from 'firebase/auth';
-import React, { useState } from 'react';
+import {
+  onAuthStateChanged,
+  signInWithEmailAndPassword,
+  User,
+} from 'firebase/auth';
+import { doc, getDoc } from 'firebase/firestore';
+import React, { useEffect, useState } from 'react';
 import {
   Image,
   Platform,
@@ -14,36 +19,96 @@ import {
 } from 'react-native';
 import FontAwesome from 'react-native-vector-icons/FontAwesome';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
-import { auth } from '../Firebase/firebaseConfig';
+import { auth, db } from '../Firebase/firebaseConfig'; // Make sure db is Firestore instance
 
 type RootStackParamList = {
   Landing: undefined;
   Login: { role: string };
-  Register: undefined;  
+  Register: undefined;
   ForgotPassword: undefined;
-  Dashboard: undefined;
+  CandidateDashboard: undefined;
+  EmployeeDashboard: undefined;
+  AdminDashboard: undefined;
+  EmployerPortal: undefined;
+  CandidatePortal: undefined;
 };
 
 export default function LandingScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  // Check auth state & redirect based on role
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (user: User | null) => {
+      if (user) {
+        setLoading(true);
+        try {
+          const userDoc = await getDoc(doc(db, 'users', user.uid));
+          if (userDoc.exists()) {
+            const userData = userDoc.data();
+            const role = userData.role || 'Candidate'; // default to Candidate if no role
+
+            if (role === 'Candidate') {
+              navigation.replace('CandidatePortal');
+            } else if (role === 'Employee') {
+              navigation.replace('EmployerPortal');
+            } else if (role === 'Admin') {
+              navigation.replace('AdminDashboard');
+            } else {
+              // Unknown role fallback
+              navigation.replace('Landing');
+            }
+          } else {
+            // No user data in Firestore — fallback or sign out
+            navigation.replace('Landing');
+          }
+        } catch (error) {
+          console.error('Error fetching user role:', error);
+          navigation.replace('Landing');
+        }
+        setLoading(false);
+      }
+    });
+
+    return unsubscribe;
+  }, []);
 
   const handleLogin = async () => {
-    try {
-      if (!email || !password) {
-        alert('Please enter both email and password');
-        return;
-      }
+    if (!email || !password) {
+      alert('Please enter both email and password');
+      return;
+    }
+    setLoading(true);
 
-      // Sign in user
+    try {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       const uid = userCredential.user.uid;
 
-      // Navigate to Dashboard after successful login
-      navigation.navigate('Dashboard');
+      // Fetch user role from Firestore
+      const userDoc = await getDoc(doc(db, 'users', uid));
+      if (userDoc.exists()) {
+        const userData = userDoc.data();
+        const role = userData.role || 'Candidate';
+
+        if (role === 'Candidate') {
+          navigation.replace('CandidateDashboard');
+        } else if (role === 'Employee') {
+          navigation.replace('EmployeeDashboard');
+        } else if (role === 'Admin') {
+          navigation.replace('AdminDashboard');
+        } else {
+          alert('User role is undefined, please contact support.');
+          setLoading(false);
+        }
+      } else {
+        alert('User data not found, please contact support.');
+        setLoading(false);
+      }
     } catch (error: any) {
       alert(error.message);
+      setLoading(false);
     }
   };
 
@@ -87,8 +152,12 @@ export default function LandingScreen() {
             />
           </View>
 
-          <TouchableOpacity style={styles.button} onPress={handleLogin}>
-            <Text style={styles.buttonText}>Login</Text>
+          <TouchableOpacity
+            style={[styles.button, loading ? { opacity: 0.7 } : {}]}
+            onPress={handleLogin}
+            disabled={loading}
+          >
+            <Text style={styles.buttonText}>{loading ? 'Logging in...' : 'Login'}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.googleButton} onPress={() => {}}>

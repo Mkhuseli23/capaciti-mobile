@@ -1,18 +1,28 @@
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import React from 'react';
 
-import DashboardScreen from '../../Screens/DashboardScreen';
+import ApplicantsScreen from '../../Screens/ApplicantsScreen';
+import CandidatePortal from '../../Screens/CandidatePortal';
+import EditProfileScreen from '../../Screens/EditProfileScreen';
+import EmployerPortalScreen from '../../Screens/EmployerPortalScreen';
 import ForgotPasswordScreen from '../../Screens/ForgotPasswordScreen';
 import LandingScreen from '../../Screens/LandingScreen';
 import LoginScreen from '../../Screens/LoginScreen';
+import PostJobScreen from '../../Screens/PostJobScreen';
 import RegisterScreen from '../../Screens/RegisterScreen';
+import ViewJobsScreen from '../../Screens/ViewJobsScreen';
 
 type RootStackParamList = {
-  Dashboard: undefined;
+  EmployerPortal: undefined;
   Login: undefined;
   Register: undefined;
   Landing: undefined;
   ForgotPassword: undefined;
+  CandidatePortal: undefined;
+  PostJobScreen: undefined;
+  ViewJobs: undefined;
+  Applicants: undefined;
+  EditProfile: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -25,7 +35,14 @@ export default function AuthNavigator() {
       <Stack.Screen name="Login" component={LoginScreen} />
       <Stack.Screen name="Register" component={RegisterScreen} />
       <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
-      <Stack.Screen name="Dashboard" component={DashboardScreen} />
+      <Stack.Screen name="EmployerPortal" component={EmployerPortalScreen} />
+      <Stack.Screen name="CandidatePortal" component={CandidatePortal} />
+      <Stack.Screen name="PostJobScreen" component={PostJobScreen} />
+      <Stack.Screen name="ViewJobs" component={ViewJobsScreen} />
+      <Stack.Screen name="Applicants" component={ApplicantsScreen} />
+      <Stack.Screen name="EditProfile" component={EditProfileScreen} />
+
+
     </Stack.Navigator>
   );
 }

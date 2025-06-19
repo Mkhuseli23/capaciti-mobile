@@ -5,9 +5,11 @@ import {
   sendEmailVerification,
   updateProfile,
 } from 'firebase/auth';
+import { doc, setDoc } from 'firebase/firestore';
 import React, { useState } from 'react';
 import {
   Image,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -17,7 +19,7 @@ import {
 } from 'react-native';
 import FontAwesome from 'react-native-vector-icons/FontAwesome';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
-import { auth } from '../Firebase/firebaseConfig';
+import { auth, db } from '../Firebase/firebaseConfig';
 
 type RootStackParamList = {
   Login: undefined;
@@ -38,50 +40,60 @@ export default function RegisterScreen() {
     /^(?=.*[A-Za-z])(?=.*\d)(?=.*[@$!%*#?&])[A-Za-z\d@$!%*#?&]{6,}$/.test(pwd);
 
   const handleRegister = async () => {
-    if (!name || !surname || !email || !password || !confirmPassword) {
-      setErrorMessage('Please fill in all fields.');
-      return;
+  if (!name || !surname || !email || !password || !confirmPassword) {
+    setErrorMessage('Please fill in all fields.');
+    return;
+  }
+
+  if (!isValidEmail(email)) {
+    setErrorMessage('Please enter a valid email address.');
+    return;
+  }
+
+  if (password !== confirmPassword) {
+    setErrorMessage('Passwords do not match.');
+    return;
+  }
+
+  if (!isStrongPassword(password)) {
+    setErrorMessage('Password must include letters, numbers, and a special character (min 6 characters).');
+    return;
+  }
+
+  try {
+    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+    const user = userCredential.user;
+
+    await updateProfile(user, {
+      displayName: `${name} ${surname}`,
+    });
+
+    await setDoc(doc(db, 'users', user.uid), {
+      name,
+      surname,
+      email,
+      role: 'Candidate',
+      createdAt: new Date(),
+    });
+
+    await sendEmailVerification(user);
+
+    alert('Registration successful. Please check your email to verify your account.');
+    setErrorMessage('');
+    navigation.navigate('Login');
+  } catch (error: any) {
+    let message = 'Something went wrong. Please try again.';
+    if (error.code === 'auth/email-already-in-use') {
+      message = 'This email is already in use.';
+    } else if (error.code === 'auth/invalid-email') {
+      message = 'Invalid email format.';
+    } else if (error.code === 'auth/weak-password') {
+      message = 'Password is too weak.';
     }
+    setErrorMessage(message);
+  }
+};
 
-    if (!isValidEmail(email)) {
-      setErrorMessage('Please enter a valid email address.');
-      return;
-    }
-
-    if (password !== confirmPassword) {
-      setErrorMessage('Passwords do not match.');
-      return;
-    }
-
-    if (!isStrongPassword(password)) {
-      setErrorMessage('Password must include letters, numbers, and a special character (min 6 characters).');
-      return;
-    }
-
-    try {
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      const user = userCredential.user;
-
-      await updateProfile(user, {
-        displayName: `${name} ${surname}`,
-      });
-
-      await sendEmailVerification(user);
-
-      setErrorMessage('');
-      navigation.navigate('Login');
-    } catch (error: any) {
-      let message = 'Something went wrong. Please try again.';
-      if (error.code === 'auth/email-already-in-use') {
-        message = 'This email is already in use.';
-      } else if (error.code === 'auth/invalid-email') {
-        message = 'Invalid email format.';
-      } else if (error.code === 'auth/weak-password') {
-        message = 'Password is too weak.';
-      }
-      setErrorMessage(message);
-    }
-  };
 
   return (
     <View style={styles.fullScreenWhite}>
@@ -242,6 +254,14 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     marginBottom: 15,
     elevation: 1,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.1,
+        shadowRadius: 1,
+      },
+    }),
   },
   icon: {
     marginRight: 10,
