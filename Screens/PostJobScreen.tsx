@@ -1,14 +1,16 @@
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
+import { addDoc, collection, serverTimestamp, Timestamp } from 'firebase/firestore';
 import React, { useState } from 'react';
 import {
-    Alert,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity
+  Alert,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity
 } from 'react-native';
 import { auth, db } from '../Firebase/firebaseConfig';
 
@@ -23,23 +25,31 @@ export default function PostJobScreen() {
   const [location, setLocation] = useState('');
   const [jobType, setJobType] = useState('');
   const [salary, setSalary] = useState('');
+  const [deadline, setDeadline] = useState<Date | null>(null);
+  const [showDatePicker, setShowDatePicker] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const handlePostJob = async () => {
-    if (!title || !description || !location || !jobType || !salary) {
-      Alert.alert('Error', 'Please fill in all fields.');
+    if (!title || !description || !location || !jobType || !salary || !deadline) {
+      Alert.alert('Error', 'Please fill in all fields including deadline.');
+      return;
+    }
+
+    const employerId = auth.currentUser?.uid;
+    if (!employerId) {
+      Alert.alert('Error', 'You must be logged in to post a job.');
       return;
     }
 
     setLoading(true);
     try {
-      const employerId = auth.currentUser?.uid;
       await addDoc(collection(db, 'jobs'), {
         title,
         description,
         location,
         jobType,
         salary,
+        deadline: Timestamp.fromDate(deadline),
         createdAt: serverTimestamp(),
         employerId,
       });
@@ -47,10 +57,21 @@ export default function PostJobScreen() {
       Alert.alert('Success', 'Job posted successfully!');
       navigation.navigate('EmployerPortal');
     } catch (error) {
-      Alert.alert('Error', 'Failed to post job. Try again.');
       console.error('Post job error:', error);
+      Alert.alert('Error', 'Failed to post job. Try again.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const showPicker = () => {
+    setShowDatePicker(true);
+  };
+
+  const handleDateChange = (event: any, selectedDate?: Date) => {
+    setShowDatePicker(Platform.OS === 'ios');
+    if (selectedDate) {
+      setDeadline(selectedDate);
     }
   };
 
@@ -91,6 +112,23 @@ export default function PostJobScreen() {
         keyboardType="numeric"
       />
 
+      <TouchableOpacity style={styles.dateButton} onPress={showPicker}>
+        <Text style={styles.dateButtonText}>
+          {deadline
+            ? `Deadline: ${deadline.toDateString()}`
+            : 'Select Deadline Date'}
+        </Text>
+      </TouchableOpacity>
+
+      {showDatePicker && (
+        <DateTimePicker
+          value={deadline || new Date()}
+          mode="date"
+          display="default"
+          onChange={handleDateChange}
+        />
+      )}
+
       <TouchableOpacity
         style={[styles.button, loading && { opacity: 0.6 }]}
         onPress={handlePostJob}
@@ -130,10 +168,22 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderRadius: 8,
     alignItems: 'center',
+    marginTop: 10,
   },
   buttonText: {
     color: '#fff',
     fontWeight: '600',
     fontSize: 16,
+  },
+  dateButton: {
+    backgroundColor: '#f0f0f0',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 15,
+    alignItems: 'center',
+  },
+  dateButtonText: {
+    fontSize: 14,
+    color: '#333',
   },
 });

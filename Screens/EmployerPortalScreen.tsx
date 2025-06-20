@@ -1,7 +1,7 @@
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { onAuthStateChanged } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs } from 'firebase/firestore';
 import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -14,28 +14,56 @@ import {
 } from 'react-native';
 import Icon from 'react-native-vector-icons/FontAwesome';
 import { auth, db } from '../Firebase/firebaseConfig';
-import { RootStackParamList } from './types'; // Adjust path if needed
+import { RootStackParamList } from './types'; // Adjust if needed
 
 export default function EmployerPortalScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
 
   const [user, setUser] = useState<any>(null);
-  const [recentActivity] = useState([
-    { id: '1', title: 'Software Engineer', applicants: 10, status: 'Open' },
-    { id: '2', title: 'UI Designer', applicants: 7, status: 'Interviewing' },
-    { id: '3', title: 'QA Tester', applicants: 4, status: 'Closed' },
-  ]);
+  const [recentActivity, setRecentActivity] = useState<any[]>([]);
+  const [stats, setStats] = useState({
+    activeJobs: 0,
+    applicants: 0,
+    interviews: 0,
+  });
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       if (currentUser) {
-        const docRef = doc(db, 'users', currentUser.uid);
-        const docSnap = await getDoc(docRef);
+        try {
+          const userRef = doc(db, 'users', currentUser.uid);
+          const userSnap = await getDoc(userRef);
 
-        if (docSnap.exists()) {
-          setUser(docSnap.data());
-        } else {
-          console.warn('No profile found in users collection');
+          if (userSnap.exists()) {
+            setUser(userSnap.data());
+          }
+
+          const jobsRef = collection(db, 'jobs');
+          const snapshot = await getDocs(jobsRef);
+
+          const employerJobs = snapshot.docs
+            .map((doc) => ({ id: doc.id, ...doc.data() }))
+            .filter((job: any) => job.employerId === currentUser.uid);
+
+          const activity = employerJobs.map((job: any) => ({
+            id: job.id,
+            title: job.title,
+            applicants: job.applicantsCount || 0,
+            status: job.status,
+          }));
+
+          setRecentActivity(activity);
+
+          setStats({
+            activeJobs: employerJobs.filter((j: any) => j.status === 'Open').length,
+            applicants: employerJobs.reduce((acc: number, j: any) => acc + (j.applicantsCount || 0), 0),
+            interviews: employerJobs.filter((j: any) => j.status === 'Interviewing').length,
+          });
+        } catch (error) {
+          console.error('Error fetching employer data:', error);
+        } finally {
+          setLoading(false);
         }
       }
     });
@@ -61,13 +89,13 @@ export default function EmployerPortalScreen() {
         </TouchableOpacity>
       </View>
 
-      {user ? (
+      {loading ? (
+        <ActivityIndicator size="small" color="#2a9df4" style={{ marginVertical: 10 }} />
+      ) : user ? (
         <Text style={styles.welcome}>
           Welcome back, {user.name} {user.surname} 👋
         </Text>
-      ) : (
-        <ActivityIndicator size="small" color="#2a9df4" style={{ marginVertical: 10 }} />
-      )}
+      ) : null}
 
       <View style={styles.buttonContainer}>
         <TouchableOpacity
@@ -105,32 +133,36 @@ export default function EmployerPortalScreen() {
 
       <View style={styles.statsContainer}>
         <View style={styles.statCard}>
-          <Text style={styles.statValue}>4</Text>
+          <Text style={styles.statValue}>{stats.activeJobs}</Text>
           <Text style={styles.statLabel}>Active Jobs</Text>
         </View>
         <View style={styles.statCard}>
-          <Text style={styles.statValue}>15</Text>
+          <Text style={styles.statValue}>{stats.applicants}</Text>
           <Text style={styles.statLabel}>Applicants</Text>
         </View>
         <View style={styles.statCard}>
-          <Text style={styles.statValue}>3</Text>
+          <Text style={styles.statValue}>{stats.interviews}</Text>
           <Text style={styles.statLabel}>Interviews</Text>
         </View>
       </View>
 
       <Text style={styles.sectionTitle}>Recent Activity</Text>
-      <FlatList
-        data={recentActivity}
-        keyExtractor={(item) => item.id}
-        renderItem={({ item }) => (
-          <View style={styles.activityItem}>
-            <Text style={styles.jobTitle}>{item.title}</Text>
-            <Text>
-              {item.applicants} Applicants – {item.status}
-            </Text>
-          </View>
-        )}
-      />
+      {recentActivity.length === 0 ? (
+        <Text style={{ textAlign: 'center', color: '#888' }}>No job activity yet.</Text>
+      ) : (
+        <FlatList
+          data={recentActivity}
+          keyExtractor={(item) => item.id}
+          renderItem={({ item }) => (
+            <View style={styles.activityItem}>
+              <Text style={styles.jobTitle}>{item.title}</Text>
+              <Text>
+                {item.applicants} Applicants – {item.status}
+              </Text>
+            </View>
+          )}
+        />
+      )}
     </ScrollView>
   );
 }

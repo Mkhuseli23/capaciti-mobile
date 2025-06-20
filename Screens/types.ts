@@ -12,4 +12,6 @@ export type RootStackParamList = {
   ViewJobs: undefined;
   Applicants: undefined;
   EditProfile: undefined;
+  MyApplications: undefined;
+  Schedule: undefined;
 };

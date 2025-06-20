@@ -55,7 +55,7 @@ export default function LandingScreen() {
             } else if (role === 'Employee') {
               navigation.replace('EmployerPortal');
             } else if (role === 'Admin') {
-              navigation.replace('AdminDashboard');
+navigation.replace('AdminDashboard');
             } else {
               // Unknown role fallback
               navigation.replace('Landing');
